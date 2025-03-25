@@ -1,0 +1,50 @@
+package com.finance.ingestion.controller;
+
+import com.finance.ingestion.model.StockData;
+import com.finance.ingestion.service.StockDataIngestionService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Arrays;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/ingest")
+public class IngestionController {
+
+    private final StockDataIngestionService stockDataIngestionService;
+
+    @Autowired
+    public IngestionController(StockDataIngestionService stockDataIngestionService) {
+        this.stockDataIngestionService = stockDataIngestionService;
+    }
+
+    @PostMapping("/manual")
+    public ResponseEntity<String> triggerManualIngestion() {
+        List<String> defaultSymbols = Arrays.asList("AAPL", "MSFT", "GOOGL", "AMZN", "TSLA");
+        List<StockData> result = stockDataIngestionService.fetchDataFromAllSources(defaultSymbols);
+        return ResponseEntity.ok("Manual ingestion triggered successfully. Fetched " + result.size() + " data points.");
+    }
+    
+    @PostMapping("/custom")
+    public ResponseEntity<List<StockData>> triggerCustomIngestion(@RequestBody List<String> symbols) {
+        List<StockData> result = stockDataIngestionService.fetchDataFromAllSources(symbols);
+        return ResponseEntity.ok(result);
+    }
+    
+    @PostMapping("/historical/{symbol}")
+    public ResponseEntity<List<StockData>> triggerHistoricalIngestion(
+            @PathVariable String symbol,
+            @RequestParam(defaultValue = "daily") String timeframe) {
+        List<StockData> result = stockDataIngestionService.fetchHistoricalData(symbol, timeframe);
+        return ResponseEntity.ok(result);
+    }
+    
+    @PostMapping("/market-indices")
+    public ResponseEntity<List<StockData>> triggerMarketIndicesIngestion() {
+        List<String> majorIndices = Arrays.asList("^GSPC", "^DJI", "^IXIC", "^RUT");
+        List<StockData> result = stockDataIngestionService.fetchDataFromAllSources(majorIndices);
+        return ResponseEntity.ok(result);
+    }
+}

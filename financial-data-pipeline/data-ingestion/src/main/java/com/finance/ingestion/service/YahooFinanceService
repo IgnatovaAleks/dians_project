@@ -1,0 +1,152 @@
+package com.finance.ingestion.service;
+
+import com.finance.ingestion.model.StockData;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+public class YahooFinanceService {
+
+    @Value("${yahoo.finance.api.key}")
+    private String apiKey;
+
+    @Value("${yahoo.finance.api.url}")
+    private String apiUrl;
+
+    private final RestTemplate restTemplate;
+
+    public YahooFinanceService(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
+
+    public List<StockData> fetchStockData(List<String> symbols) {
+        List<StockData> stockDataList = new ArrayList<>();
+        
+        try {
+            String symbolsStr = String.join(",", symbols);
+            
+            String url = UriComponentsBuilder.fromHttpUrl(apiUrl)
+                .path("/v7/finance/quote")
+                .queryParam("symbols", symbolsStr)
+                .toUriString();
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-API-KEY", apiKey);
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            
+            ResponseEntity<String> response = restTemplate.exchange(
+                url, HttpMethod.GET, entity, String.class);
+            
+            JSONObject jsonResponse = new JSONObject(response.getBody());
+            
+            if (jsonResponse.has("quoteResponse") && 
+                jsonResponse.getJSONObject("quoteResponse").has("result")) {
+                
+                JSONArray results = jsonResponse.getJSONObject("quoteResponse").getJSONArray("result");
+                
+                for (int i = 0; i < results.length(); i++) {
+                    JSONObject quote = results.getJSONObject(i);
+                    
+                    if (quote.has("regularMarketPrice") && quote.has("regularMarketVolume")) {
+                        StockData data = new StockData();
+                        data.setSymbol(quote.getString("symbol"));
+                        data.setPrice(BigDecimal.valueOf(quote.getDouble("regularMarketPrice")));
+                        data.setVolume(BigDecimal.valueOf(quote.getLong("regularMarketVolume")));
+                        
+                        if (quote.has("regularMarketTime")) {
+                            long timestamp = quote.getLong("regularMarketTime");
+                            data.setTimestamp(LocalDateTime.ofInstant(
+                                Instant.ofEpochSecond(timestamp), 
+                                ZoneId.systemDefault()));
+                        } else {
+                            data.setTimestamp(LocalDateTime.now());
+                        }
+                        
+                        data.setSource("Yahoo Finance");
+                        stockDataList.add(data);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error fetching data from Yahoo Finance: " + e.getMessage());
+        }
+        
+        return stockDataList;
+    }
+    
+    public List<StockData> fetchHistoricalData(String symbol, String interval, String range) {
+        List<StockData> historicalData = new ArrayList<>();
+        
+        try {
+            String url = UriComponentsBuilder.fromHttpUrl(apiUrl)
+                .path("/v8/finance/chart/" + symbol)
+                .queryParam("interval", interval)
+                .queryParam("range", range)
+                .toUriString();
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-API-KEY", apiKey);
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            
+            ResponseEntity<String> response = restTemplate.exchange(
+                url, HttpMethod.GET, entity, String.class);
+            
+            JSONObject jsonResponse = new JSONObject(response.getBody());
+            
+            if (jsonResponse.has("chart") && 
+                jsonResponse.getJSONObject("chart").has("result")) {
+                
+                JSONArray results = jsonResponse.getJSONObject("chart").getJSONArray("result");
+                
+                if (results.length() > 0) {
+                    JSONObject result = results.getJSONObject(0);
+                    JSONArray timestamps = result.getJSONArray("timestamp");
+                    JSONObject indicators = result.getJSONObject("indicators");
+                    JSONArray quotes = indicators.getJSONArray("quote");
+                    
+                    if (quotes.length() > 0) {
+                        JSONObject quote = quotes.getJSONObject(0);
+                        JSONArray closeData = quote.getJSONArray("close");
+                        JSONArray volumeData = quote.getJSONArray("volume");
+                        
+                        for (int i = 0; i < timestamps.length(); i++) {
+                            if (!closeData.isNull(i) && !volumeData.isNull(i)) {
+                                StockData data = new StockData();
+                                data.setSymbol(symbol);
+                                data.setPrice(BigDecimal.valueOf(closeData.getDouble(i)));
+                                data.setVolume(BigDecimal.valueOf(volumeData.getLong(i)));
+                                
+                                long timestamp = timestamps.getLong(i);
+                                data.setTimestamp(LocalDateTime.ofInstant(
+                                    Instant.ofEpochSecond(timestamp), 
+                                    ZoneId.systemDefault()));
+                                
+                                data.setSource("Yahoo Finance");
+                                historicalData.add(data);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error fetching historical data for " + symbol + ": " + e.getMessage());
+        }
+        
+        return historicalData;
+    }
+}

@@ -1,0 +1,18 @@
+package com.finance.ingestion.repository;
+
+import com.finance.ingestion.model.StockData;
+import org.springframework.data.cassandra.repository.CassandraRepository;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Repository
+public interface CassandraStockDataRepository extends CassandraRepository<StockData, StockData.StockDataKey> {
+    
+    List<StockData> findByKeySymbol(String symbol);
+    
+    List<StockData> findByKeySymbolAndKeyTimestampBetween(String symbol, LocalDateTime start, LocalDateTime end);
+    
+    List<StockData> findByKeySymbolAndKeySource(String symbol, String source);
+}

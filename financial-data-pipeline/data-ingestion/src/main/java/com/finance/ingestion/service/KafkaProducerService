@@ -1,0 +1,28 @@
+package com.finance.ingestion.service;
+
+import com.finance.ingestion.model.StockData;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Service;
+
+@Service
+public class KafkaProducerService {
+
+    private static final String STOCK_DATA_TOPIC = "stock-data";
+    private static final String HISTORICAL_DATA_TOPIC = "historical-data";
+
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    @Autowired
+    public KafkaProducerService(KafkaTemplate<String, Object> kafkaTemplate) {
+        this.kafkaTemplate = kafkaTemplate;
+    }
+
+    public void sendStockData(StockData stockData) {
+        kafkaTemplate.send(STOCK_DATA_TOPIC, stockData.getSymbol(), stockData);
+    }
+
+    public void sendHistoricalData(StockData stockData) {
+        kafkaTemplate.send(HISTORICAL_DATA_TOPIC, stockData.getSymbol(), stockData);
+    }
+}

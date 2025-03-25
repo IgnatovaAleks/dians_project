@@ -1,0 +1,117 @@
+package com.finance.ingestion.service;
+
+import com.finance.ingestion.model.StockData;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
+import org.json.JSONObject;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+public class AlphaVantageService {
+
+    @Value("${alpha.vantage.api.key}")
+    private String apiKey;
+
+    @Value("${alpha.vantage.api.url}")
+    private String apiUrl;
+
+    private final RestTemplate restTemplate;
+
+    public AlphaVantageService(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
+
+    public List<StockData> fetchStockData(List<String> symbols) {
+        List<StockData> stockDataList = new ArrayList<>();
+        
+        for (String symbol : symbols) {
+            try {
+                String url = UriComponentsBuilder.fromHttpUrl(apiUrl)
+                    .queryParam("function", "GLOBAL_QUOTE")
+                    .queryParam("symbol", symbol)
+                    .queryParam("apikey", apiKey)
+                    .toUriString();
+                
+                String response = restTemplate.getForObject(url, String.class);
+                JSONObject jsonResponse = new JSONObject(response);
+                
+                if (jsonResponse.has("Global Quote")) {
+                    JSONObject quote = jsonResponse.getJSONObject("Global Quote");
+                    
+                    StockData data = new StockData();
+                    data.setSymbol(symbol);
+                    data.setPrice(new BigDecimal(quote.getString("05. price")));
+                    data.setVolume(new BigDecimal(quote.getString("06. volume")));
+                    data.setTimestamp(LocalDateTime.now());
+                    data.setSource("Alpha Vantage");
+                    stockDataList.add(data);
+                } else if (jsonResponse.has("Note")) {
+                    System.out.println("Alpha Vantage API rate limit reached: " + jsonResponse.getString("Note"));
+                } else if (jsonResponse.has("Error Message")) {
+                    System.out.println("Alpha Vantage API error: " + jsonResponse.getString("Error Message"));
+                }
+            } catch (Exception e) {
+                System.err.println("Error fetching data for symbol " + symbol + " from Alpha Vantage: " + e.getMessage());
+            }
+        }
+        
+        return stockDataList;
+    }
+    
+    public List<StockData> fetchHistoricalData(String symbol, String interval) {
+        List<StockData> historicalData = new ArrayList<>();
+        
+        try {
+            String function = interval.equalsIgnoreCase("daily") ? "TIME_SERIES_DAILY" : "TIME_SERIES_INTRADAY";
+            
+            String url = UriComponentsBuilder.fromHttpUrl(apiUrl)
+                .queryParam("function", function)
+                .queryParam("symbol", symbol)
+                .queryParam("apikey", apiKey)
+                .toUriString();
+            
+            if (function.equals("TIME_SERIES_INTRADAY")) {
+                url = UriComponentsBuilder.fromHttpUrl(url)
+                    .queryParam("interval", "5min")
+                    .toUriString();
+            }
+            
+            String response = restTemplate.getForObject(url, String.class);
+            JSONObject jsonResponse = new JSONObject(response);
+            
+            String timeSeriesKey = function.equals("TIME_SERIES_DAILY") ? 
+                "Time Series (Daily)" : "Time Series (5min)";
+            
+            if (jsonResponse.has(timeSeriesKey)) {
+                JSONObject timeSeries = jsonResponse.getJSONObject(timeSeriesKey);
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern(
+                    function.equals("TIME_SERIES_DAILY") ? "yyyy-MM-dd" : "yyyy-MM-dd HH:mm:ss"
+                );
+                
+                for (String dateTime : timeSeries.keySet()) {
+                    JSONObject dataPoint = timeSeries.getJSONObject(dateTime);
+                    
+                    StockData data = new StockData();
+                    data.setSymbol(symbol);
+                    data.setPrice(new BigDecimal(dataPoint.getString("4. close")));
+                    data.setVolume(new BigDecimal(dataPoint.getString("5. volume")));
+                    data.setTimestamp(LocalDateTime.parse(dateTime, formatter));
+                    data.setSource("Alpha Vantage");
+                    historicalData.add(data);
+                }
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error fetching historical data for " + symbol + ": " + e.getMessage());
+        }
+        
+        return historicalData;
+    }
+}

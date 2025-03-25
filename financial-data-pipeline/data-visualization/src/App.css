@@ -1,0 +1,257 @@
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 30px;
+  color: #2c3e50;
+}
+
+.search-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 30px;
+}
+
+select {
+  padding: 12px 20px;
+  width: 300px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 16px;
+  background-color: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+select:focus {
+  outline: none;
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+.data-container {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  grid-template-rows: auto auto;
+  gap: 25px;
+  grid-template-areas:
+    "price chart"
+    "info table";
+}
+
+.price-card {
+  grid-area: price;
+  background-color: white;
+  padding: 25px;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  text-align: center;
+}
+
+.price-card h2 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #2c3e50;
+}
+
+.price {
+  font-size: 36px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  color: #2c3e50;
+}
+
+.change {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.change.positive {
+  color: #27ae60;
+}
+
+.change.negative {
+  color: #e74c3c;
+}
+
+.chart-container {
+  grid-area: chart;
+  background-color: white;
+  padding: 25px;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.info-container {
+  grid-area: info;
+  background-color: white;
+  padding: 25px;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.historical-table-container {
+  grid-area: table;
+  background-color: white;
+  padding: 25px;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  max-height: 900px;
+  overflow-y: auto;
+}
+
+.historical-table-container h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #2c3e50;
+}
+
+.table-responsive {
+  overflow-x: auto;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.historical-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.historical-table thead {
+  background-color: #f8f9fa;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.historical-table th {
+  padding: 15px;
+  text-align: left;
+  font-weight: 600;
+  color: #2c3e50;
+  border-bottom: 2px solid #e0e0e0;
+  position: sticky;
+  top: 0;
+}
+
+.historical-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #e0e0e0;
+  color: #34495e;
+}
+
+.historical-table tr:last-child td {
+  border-bottom: none;
+}
+
+.historical-table tr:hover {
+  background-color: #f8f9fa;
+}
+
+.historical-table .positive {
+  color: #27ae60;
+  font-weight: 500;
+}
+
+.historical-table .negative {
+  color: #e74c3c;
+  font-weight: 500;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #eee;
+}
+
+.info-item strong {
+  color: #2c3e50;
+}
+
+.description {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+  line-height: 1.6;
+  color: #34495e;
+}
+
+.prediction-container {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.prediction-container h3 {
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.prediction-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.prediction-table th, .prediction-table td {
+  padding: 10px;
+  border: 1px solid #ddd;
+  text-align: center;
+}
+
+.prediction-table th {
+  background-color: #007bff;
+  color: white;
+}
+
+.prediction-table tbody tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+
+
+@media (max-width: 768px) {
+  .data-container {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "price"
+      "chart"
+      "info"
+      "table";
+  }
+
+  .historical-table th,
+  .historical-table td {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .price {
+    font-size: 28px;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.price-card,
+.chart-container,
+.info-container,
+.historical-table-container {
+  animation: fadeIn 0.3s ease-out forwards;
+}

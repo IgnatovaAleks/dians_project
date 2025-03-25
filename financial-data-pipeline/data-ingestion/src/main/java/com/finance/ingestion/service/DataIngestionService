@@ -1,0 +1,27 @@
+package com.finance.ingestion.service;
+
+import com.finance.ingestion.model.StockData;
+import java.util.List;
+
+public interface DataIngestionService {
+    
+    /**
+     * Fetches stock data from all configured sources
+     * @param symbols List of stock symbols to fetch
+     * @return Combined list of stock data from all sources
+     */
+    List<StockData> fetchDataFromAllSources(List<String> symbols);
+    
+    /**
+     * Fetches and publishes stock data for default symbols
+     */
+    void fetchAndPublishStockData();
+    
+    /**
+     * Fetch historical data for a specific symbol and timeframe
+     * @param symbol The stock symbol
+     * @param timeframe The timeframe (e.g., "daily", "weekly", "intraday")
+     * @return Historical stock data
+     */
+    List<StockData> fetchHistoricalData(String symbol, String timeframe);
+}

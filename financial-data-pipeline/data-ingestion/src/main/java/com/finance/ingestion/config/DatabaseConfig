@@ -1,0 +1,127 @@
+package com.finance.ingestion.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.cassandra.config.AbstractCassandraConfiguration;
+import org.springframework.data.cassandra.config.CassandraClusterFactoryBean;
+import org.springframework.data.cassandra.config.SchemaAction;
+import org.springframework.data.cassandra.core.cql.keyspace.CreateKeyspaceSpecification;
+import org.springframework.data.cassandra.core.cql.keyspace.KeyspaceOption;
+import org.springframework.data.cassandra.repository.config.EnableCassandraRepositories;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.orm.jpa.JpaTransactionManager;
+import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
+import org.springframework.transaction.PlatformTransactionManager;
+
+import com.datastax.driver.core.AuthProvider;
+import com.datastax.driver.core.PlainTextAuthProvider;
+
+import javax.sql.DataSource;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Configuration
+
+@EnableJpaRepositories(
+    basePackages = "com.finance.ingestion.repository",
+    entityManagerFactoryRef = "jpaEntityManagerFactory",
+    transactionManagerRef = "jpaTransactionManager"
+)
+@EnableCassandraRepositories(
+    basePackages = "com.finance.ingestion.repository",
+    cassandraTemplateRef = "cassandraTemplate"
+)
+public class DatabaseConfig extends AbstractCassandraConfiguration {
+
+    @Value("${spring.data.cassandra.keyspace-name}")
+    private String keyspaceName;
+
+    @Value("${spring.data.cassandra.contact-points}")
+    private String contactPoints;
+
+    @Value("${spring.data.cassandra.port}")
+    private int port;
+
+    @Value("${spring.data.cassandra.username}")
+    private String cassandraUsername;
+
+    @Value("${spring.data.cassandra.password}")
+    private String cassandraPassword;
+
+    @Bean
+    public LocalContainerEntityManagerFactoryBean jpaEntityManagerFactory(DataSource dataSource) {
+        LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
+        em.setDataSource(dataSource);
+        em.setPackagesToScan("com.finance.ingestion.model");
+        
+        HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
+        em.setJpaVendorAdapter(vendorAdapter);
+        
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("hibernate.hbm2ddl.auto", "update");
+        properties.put("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
+        properties.put("hibernate.show_sql", "false");
+        em.setJpaPropertyMap(properties);
+        
+        return em;
+    }
+
+    @Bean
+    public PlatformTransactionManager jpaTransactionManager(LocalContainerEntityManagerFactoryBean jpaEntityManagerFactory) {
+        JpaTransactionManager transactionManager = new JpaTransactionManager();
+        transactionManager.setEntityManagerFactory(jpaEntityManagerFactory.getObject());
+        return transactionManager;
+    }
+    
+    @Override
+    protected String getKeyspaceName() {
+        return keyspaceName;
+    }
+
+    @Override
+    protected String getContactPoints() {
+        return contactPoints;
+    }
+
+    @Override
+    protected int getPort() {
+        return port;
+    }
+
+    @Override
+    public SchemaAction getSchemaAction() {
+        return SchemaAction.CREATE_IF_NOT_EXISTS;
+    }
+
+    @Override
+    protected List<CreateKeyspaceSpecification> getKeyspaceCreations() {
+        CreateKeyspaceSpecification specification = CreateKeyspaceSpecification
+                .createKeyspace(keyspaceName)
+                .ifNotExists()
+                .with(KeyspaceOption.DURABLE_WRITES, true)
+                .withSimpleReplication(1);
+
+        return Collections.singletonList(specification);
+    }
+
+    @Override
+    public String[] getEntityBasePackages() {
+        return new String[]{"com.finance.ingestion.model"};
+    }
+
+    @Override
+    protected AuthProvider getAuthProvider() {
+        return new PlainTextAuthProvider(cassandraUsername, cassandraPassword);
+    }
+    
+    @Override
+    public CassandraClusterFactoryBean cluster() {
+        CassandraClusterFactoryBean cluster = super.cluster();
+        cluster.setJmxReportingEnabled(false);
+        return cluster;
+    }
+}

@@ -1,0 +1,121 @@
+package com.finance.ingestion.service;
+
+import com.finance.ingestion.model.StockData;
+import com.finance.ingestion.repository.CassandraStockDataRepository;
+import com.finance.ingestion.repository.StockDataRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
+@Service
+public class StockDataIngestionService implements DataIngestionService {
+
+    private final AlphaVantageService alphaVantageService;
+    private final YahooFinanceService yahooFinanceService;
+    private final KafkaProducerService kafkaProducerService;
+    private final StockDataRepository postgresRepository;
+    private final CassandraStockDataRepository cassandraRepository;
+    
+    @Autowired
+    public StockDataIngestionService(
+            AlphaVantageService alphaVantageService,
+            YahooFinanceService yahooFinanceService,
+            KafkaProducerService kafkaProducerService,
+            StockDataRepository postgresRepository,
+            CassandraStockDataRepository cassandraRepository) {
+        this.alphaVantageService = alphaVantageService;
+        this.yahooFinanceService = yahooFinanceService;
+        this.kafkaProducerService = kafkaProducerService;
+        this.postgresRepository = postgresRepository;
+        this.cassandraRepository = cassandraRepository;
+    }
+    
+    @Override
+    public List<StockData> fetchDataFromAllSources(List<String> symbols) {
+        List<StockData> combinedData = new ArrayList<>();
+        
+        CompletableFuture<List<StockData>> alphaVantageFuture = CompletableFuture
+                .supplyAsync(() -> alphaVantageService.fetchStockData(symbols));
+        
+        CompletableFuture<List<StockData>> yahooFinanceFuture = CompletableFuture
+                .supplyAsync(() -> yahooFinanceService.fetchStockData(symbols));
+        
+        CompletableFuture.allOf(alphaVantageFuture, yahooFinanceFuture).join();
+        
+        try {
+            combinedData.addAll(alphaVantageFuture.get());
+            combinedData.addAll(yahooFinanceFuture.get());
+            
+            saveAndPublishData(combinedData, false);
+            
+        } catch (Exception e) {
+            System.err.println("Error collecting data from sources: " + e.getMessage());
+        }
+        
+        return combinedData;
+    }
+    
+    private void saveAndPublishData(List<StockData> dataList, boolean isHistorical) {
+        for (StockData data : dataList) {
+            try {
+                postgresRepository.save(data);
+                
+                cassandraRepository.save(data);
+                
+                if (isHistorical) {
+                    kafkaProducerService.sendHistoricalData(data);
+                } else {
+                    kafkaProducerService.sendStockData(data);
+                }
+                
+            } catch (Exception e) {
+                System.err.println("Error saving/publishing data for " + data.getSymbol() + ": " + e.getMessage());
+            }
+        }
+    }
+    
+    @Override
+    public void fetchAndPublishStockData() {
+        List<String> defaultSymbols = Arrays.asList("AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA");
+        List<StockData> collectedData = fetchDataFromAllSources(defaultSymbols);
+        
+        System.out.println("Collected and stored " + collectedData.size() + " data points for stocks");
+    }
+    
+    @Scheduled(cron = "0 */15 9-16 * * MON-FRI")
+    public void scheduledMarketDataCollection() {
+        List<String> majorIndices = Arrays.asList("^GSPC", "^DJI", "^IXIC", "^RUT");
+        List<StockData> collectedData = fetchDataFromAllSources(majorIndices);
+        
+        System.out.println("Collected and stored " + collectedData.size() + " data points for indices");
+    }
+    
+    @Scheduled(cron = "0 */5 9-16 * * MON-FRI")
+    public void scheduledStockDataCollection() {
+        fetchAndPublishStockData();
+    }
+    
+    @Override
+    public List<StockData> fetchHistoricalData(String symbol, String timeframe) {
+        List<StockData> combinedHistoricalData = new ArrayList<>();
+        
+        if ("daily".equalsIgnoreCase(timeframe)) {
+            combinedHistoricalData.addAll(alphaVantageService.fetchHistoricalData(symbol, "daily"));
+        } else if ("intraday".equalsIgnoreCase(timeframe)) {
+            combinedHistoricalData.addAll(
+                yahooFinanceService.fetchHistoricalData(symbol, "5m", "1d"));
+        } else if ("weekly".equalsIgnoreCase(timeframe)) {
+            combinedHistoricalData.addAll(
+                yahooFinanceService.fetchHistoricalData(symbol, "1d", "1y"));
+        }
+        
+        saveAndPublishData(combinedHistoricalData, true);
+        
+        return combinedHistoricalData;
+    }
+}
